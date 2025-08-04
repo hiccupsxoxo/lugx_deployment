@@ -1,0 +1,42 @@
+name: Deploy Game Service to EKS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLUSTER_NAME: 2506634_lugx-cloud
+      REGION: us-east-1
+
+    steps:
+      - name: ✅ Checkout source code
+        uses: actions/checkout@v4
+
+      - name: 📌 Configure AWS credentials (access keys)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.REGION }}
+
+      - name: 📡 Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.REGION }} \
+            --name   ${{ env.CLUSTER_NAME }}
+
+      - name: 🧪 Validate kubeconfig
+        run: |
+          kubectl config current-context
+          kubectl get nodes
+
+      - name: 🚀 Deploy manifests
+        run: kubectl apply -f ./
+
+      - name: ✅ Verify pods
+        run: kubectl get pods -A
+

@@ -1,0 +1,90 @@
+# Namespace (skip if already exists)
+apiVersion: v1
+kind: Namespace
+metadata: 
+  name: iit-dev
+
+---
+
+# Deployment for Order Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: iit-dev
+  labels:
+    app: order-service
+spec:
+  replicas: 1  
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-secret
+      containers:
+        - name: order-service
+          image: nuviii/order-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8086
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              value: "mysql+pymysql://root:Navo%402002@34.46.253.164:3306/ordersdb"  
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      restartPolicy: Always
+
+---
+
+# Service for Order Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: iit-dev
+  labels:
+    app: order-service
+spec:
+  type: ClusterIP
+  selector:
+    app: order-service
+  ports:
+    - protocol: TCP
+      port: 8086
+      targetPort: 8086
+
+---
+
+# Ingress for Order Service
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: order-ingress
+  namespace: iit-dev
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: orderservice.lugx.iit
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 8086

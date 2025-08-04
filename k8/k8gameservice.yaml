@@ -1,0 +1,87 @@
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata: 
+  name: iit-dev
+ 
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: game-service
+  namespace: iit-dev
+  labels:
+    app: game-service
+spec:
+  replicas: 1  
+  selector:
+    matchLabels:
+      app: game-service
+  template:
+    metadata:
+      labels:
+        app: game-service
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-secret
+      containers:
+        - name: game-service
+          image: nuviii/game-service:latest
+          imagePullPolicy: Always  # ✅ Always pull latest in cloud
+          ports:
+            - containerPort: 8085
+              protocol: TCP
+          env:
+          - name: DATABASE_URL
+            value: "mysql+pymysql://root:Navo%402002@34.46.253.164:3306/gamedb"
+          resources:  # ✅ Cloud cost control
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: game-service
+  namespace: iit-dev
+  labels:
+    app: game-service
+spec:
+  type: ClusterIP
+  selector:
+    app: game-service
+  ports:
+    - protocol: TCP
+      port: 8085
+      targetPort: 8085
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: game-ingress
+  namespace: iit-dev
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: gameservice.lugx.iit
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: game-service
+                port:
+                  number: 8085

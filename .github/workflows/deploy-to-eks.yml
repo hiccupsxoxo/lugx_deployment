@@ -1,0 +1,43 @@
+name: GKE CI/CD Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to GKE
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: '${{ secrets.GCP_PROJECT_ID }}'
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER }} \
+            --region ${{ secrets.GKE_LOCATION }} \
+            --project ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Verify GKE context
+        run: |
+          kubectl config current-context
+          kubectl get nodes
+
+      - name: Apply all manifests in k8 folder
+        run: |
+          kubectl apply -f k8/
+
+      - name: List all pods after deployment
+        run: kubectl get pods -A

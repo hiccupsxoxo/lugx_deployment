@@ -1,0 +1,122 @@
+# Namespace (only needed if not already created)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: clickhouse
+
+---
+
+# Persistent Volume Claim for ClickHouse Data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: clickhouse-data
+  namespace: clickhouse
+  labels:
+    app: clickhouse
+spec:
+  accessModes:
+    - ReadWriteOnce  
+  resources:
+    requests:
+      storage: 1Gi   # Adjust size as needed
+  storageClassName: standard  
+
+---
+
+# ClickHouse Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clickhouse
+  namespace: clickhouse
+  labels:
+    app: clickhouse
+spec:
+  replicas: 1  # For coursework/small project
+  strategy:
+    type: Recreate  # Ensures safe EBS volume reattachment
+  selector:
+    matchLabels:
+      app: clickhouse
+  template:
+    metadata:
+      labels:
+        app: clickhouse
+    spec:
+      containers:
+        - name: clickhouse
+          image: clickhouse/clickhouse-server:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8123  # HTTP (used by analytics, Superset, browser UI)
+              protocol: TCP
+            - containerPort: 9000  # Native TCP protocol (optional)
+              protocol: TCP
+          env:
+            - name: CLICKHOUSE_USER
+              value: default
+            - name: CLICKHOUSE_PASSWORD
+              value: mypassword123
+          volumeMounts:
+            - name: clickhouse-data
+              mountPath: /var/lib/clickhouse
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+      volumes:
+        - name: clickhouse-data
+          persistentVolumeClaim:
+            claimName: clickhouse-data
+      restartPolicy: Always
+
+---
+
+# ClickHouse ClusterIP Service (internal access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse
+  namespace: clickhouse
+  labels:
+    app: clickhouse
+spec:
+  type: ClusterIP
+  selector:
+    app: clickhouse
+  ports:
+    - name: http
+      port: 8123
+      targetPort: 8123
+    - name: native
+      port: 9000
+      targetPort: 9000
+
+---
+
+# Ingress to expose ClickHouse HTTP API (optional, for external browser/UI/API access)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: clickhouse-ingress
+  namespace: clickhouse
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"  # Change to "true" for HTTPS
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: clickhouse.lugx.iit.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clickhouse
+                port:
+                  number: 8123

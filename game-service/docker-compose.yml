@@ -1,0 +1,28 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: gamedb
+    restart: always
+    environment:
+      MYSQL_DATABASE: gamedb
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  game-service:
+    build:
+      context: .
+    container_name: game-service
+    ports:
+      - "8085:8085"  
+    depends_on:
+      - mysql
+    environment:
+      DATABASE_URL: mysql+pymysql://user:password@mysql:3306/gamedb
+
+volumes:
+  mysql_data:
